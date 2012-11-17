@@ -52,8 +52,6 @@ set(UV_WIN32_SRCS
     )
 
 set(UV_POSIX_SRCS
-    include/uv-private/eio.h
-    include/uv-private/ev.h
     include/uv-private/uv-unix.h
     include/uv-private/uv-linux.h
     include/uv-private/uv-sunos.h
@@ -62,14 +60,7 @@ set(UV_POSIX_SRCS
     src/unix/async.c
     src/unix/core.c
     src/unix/dl.c
-    src/unix/eio/ecb.h
-    src/unix/eio/eio.c
-    src/unix/eio/xthread.h
     src/unix/error.c
-    src/unix/ev/ev.c
-    src/unix/ev/ev_vars.h
-    src/unix/ev/ev_wrap.h
-    src/unix/ev/event.h
     src/unix/fs.c
     src/unix/getaddrinfo.c
     src/unix/internal.h
@@ -82,11 +73,10 @@ set(UV_POSIX_SRCS
     src/unix/stream.c
     src/unix/tcp.c
     src/unix/thread.c
+    src/unix/threadpool.c
     src/unix/timer.c
     src/unix/tty.c
     src/unix/udp.c
-    src/unix/uv-eio.c
-    src/unix/uv-eio.h
     )
 
 set(UV_TEST_SRCS
@@ -135,6 +125,7 @@ set(UV_TEST_SRCS
     test/test-shutdown-close.c
     test/test-shutdown-eof.c
     test/test-signal.c
+    test/test-signal-multiple-loops.c
     test/test-spawn.c
     test/test-fs-poll.c
     test/test-stdio-over-pipes.c
@@ -157,6 +148,9 @@ set(UV_TEST_SRCS
     test/test-mutexes.c
     test/test-signal.c
     test/test-thread.c
+    test/test-barrier.c
+    test/test-condvar.c
+    test/test-condvar-consumer-producer.c
     test/test-timer-again.c
     test/test-timer.c
     test/test-tty.c
@@ -213,9 +207,7 @@ else()
     # FIXME: solaris here
     if(APPLE)
         add_definitions(
-            -D_DARWIN_USE_64_BIT_INODE=1
-            -DEV_CONFIG_H=\"config_darwin.h\"
-            -DEIO_CONFIG_H=\"config_darwin.h\")
+            -D_DARWIN_USE_64_BIT_INODE=1)
         set(UV_SRCS
             ${UV_POSIX_SRCS}
             ${UV_COMMON_SRCS}
@@ -224,7 +216,6 @@ else()
             src/unix/kqueue.c)
         set(UV_LIBS m)
     elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-        add_definitions(-DEV_CONFIG_H=\"config_linux.h\" -DEIO_CONFIG_H=\"config_linux.h\")
         set(UV_SRCS
             ${UV_POSIX_SRCS}
             ${UV_COMMON_SRCS}
@@ -235,8 +226,6 @@ else()
             )
         set(UV_LIBS rt m dl)
     elseif(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
-        add_definitions(-DEV_CONFIG_H=\"config_freebsd.h\"
-            -DEIO_CONFIG_H=\"config_freebsd.h\")
         set(UV_SRCS
             ${UV_POSIX_SRCS}
             ${UV_COMMON_SRCS}
@@ -245,8 +234,6 @@ else()
             )
         set(UV_LIBS m pthread kvm)
     elseif(${CMAKE_SYSTEM_NAME} STREQUAL "CYGWIN")
-        add_definitions(-DEV_CONFIG_H=\"config_cygwin.h\" 
-            -DEIO_CONFIG_H=\"config_cygwin.h\")
         set(UV_SRCS
             ${UV_POSIX_SRCS}
             ${UV_COMMON_SRCS}

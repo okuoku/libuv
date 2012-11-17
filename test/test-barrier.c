@@ -22,66 +22,77 @@
 #include "uv.h"
 #include "task.h"
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
-#define CHECK_HANDLE(handle) \
-  ASSERT((uv_udp_t*)(handle) == &handle_)
-
-#define CHECK_REQ(req) \
-  ASSERT((req) == &req_);
-
-static uv_udp_t handle_;
-static uv_udp_send_t req_;
-
-static int send_cb_called;
-static int close_cb_called;
+typedef struct {
+  uv_barrier_t barrier;
+  int delay;
+  volatile int posted;
+} worker_config;
 
 
-static void close_cb(uv_handle_t* handle) {
-  CHECK_HANDLE(handle);
-  close_cb_called++;
+static void worker(void* arg) {
+  worker_config* c = arg;
+
+  if (c->delay)
+    uv_sleep(c->delay);
+
+  uv_barrier_wait(&c->barrier);
 }
 
 
-static void send_cb(uv_udp_send_t* req, int status) {
-  CHECK_REQ(req);
-  CHECK_HANDLE(req->handle);
+TEST_IMPL(barrier_1) {
+  uv_thread_t thread;
+  worker_config wc;
 
-  ASSERT(status == -1);
-  ASSERT(uv_last_error(uv_default_loop()).code == UV_EMSGSIZE);
+  memset(&wc, 0, sizeof(wc));
 
-  uv_close((uv_handle_t*)req->handle, close_cb);
-  send_cb_called++;
+  ASSERT(0 == uv_barrier_init(&wc.barrier, 2));
+  ASSERT(0 == uv_thread_create(&thread, worker, &wc));
+
+  uv_sleep(100);
+  uv_barrier_wait(&wc.barrier);
+
+  ASSERT(0 == uv_thread_join(&thread));
+  uv_barrier_destroy(&wc.barrier);
+
+  return 0;
 }
 
 
-TEST_IMPL(udp_dgram_too_big) {
-  char dgram[65536]; /* 64K MTU is unlikely, even on localhost */
-  struct sockaddr_in addr;
-  uv_buf_t buf;
-  int r;
+TEST_IMPL(barrier_2) {
+  uv_thread_t thread;
+  worker_config wc;
 
-  memset(dgram, 42, sizeof dgram); /* silence valgrind */
+  memset(&wc, 0, sizeof(wc));
+  wc.delay = 100;
 
-  r = uv_udp_init(uv_default_loop(), &handle_);
-  ASSERT(r == 0);
+  ASSERT(0 == uv_barrier_init(&wc.barrier, 2));
+  ASSERT(0 == uv_thread_create(&thread, worker, &wc));
 
-  buf = uv_buf_init(dgram, sizeof dgram);
-  addr = uv_ip4_addr("127.0.0.1", TEST_PORT);
+  uv_barrier_wait(&wc.barrier);
 
-  r = uv_udp_send(&req_, &handle_, &buf, 1, addr, send_cb);
-  ASSERT(r == 0);
+  ASSERT(0 == uv_thread_join(&thread));
+  uv_barrier_destroy(&wc.barrier);
 
-  ASSERT(close_cb_called == 0);
-  ASSERT(send_cb_called == 0);
+  return 0;
+}
 
-  uv_run(uv_default_loop());
 
-  ASSERT(send_cb_called == 1);
-  ASSERT(close_cb_called == 1);
+TEST_IMPL(barrier_3) {
+  uv_thread_t thread;
+  worker_config wc;
 
-  MAKE_VALGRIND_HAPPY();
+  memset(&wc, 0, sizeof(wc));
+
+  ASSERT(0 == uv_barrier_init(&wc.barrier, 2));
+  ASSERT(0 == uv_thread_create(&thread, worker, &wc));
+
+  uv_barrier_wait(&wc.barrier);
+
+  ASSERT(0 == uv_thread_join(&thread));
+  uv_barrier_destroy(&wc.barrier);
+
   return 0;
 }
